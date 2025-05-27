@@ -1,0 +1,118 @@
+{
+  "radioStations": [
+    {
+      "name": "RNE5 Todo Noticias",
+      "streamUrl": "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r5_madrid_main.m3u8",
+      "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Radio_5_RNE_Spain.svg/330px-Radio_5_RNE_Spain.svg.png",
+      "categoryId": 3,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "RNE5 Todo Noticias",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "RNE",
+      "streamUrl": "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r1_main.m3u8",
+      "iconUrl": "https://ayto-reocin.com/wp-content/uploads/2015/07/logo-rne.jpg",
+      "categoryId": 4,
+      "tags": [
+        "noticas"
+      ],
+      "metadata": {
+        "description": "Radio Nacional de España",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "Onda Cero",
+      "streamUrl": "https://atres-live.ondacero.es/live/ondacero/bitrate_1.m3u8",
+      "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Onda_Cero_logo.svg/330px-Onda_Cero_logo.svg.png",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "Ondacero",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "Ser",
+      "streamUrl": "https://25353.live.streamtheworld.com/CADENASERAAC/HLS/playlist.m3u8",
+      "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/7/75/Cadena_Ser_logo-2.jpg",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "La Ser",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "BBC World",
+      "streamUrl": "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service",
+      "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/BBC_World_News_2022_%28Boxed%29.svg/250px-BBC_World_News_2022_%28Boxed%29.svg.png",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "BBC World",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "wnyc.org",
+      "streamUrl": "https://am820.wnyc.org/wnycfm.aac",
+      "iconUrl": "https://media.wnyc.org/i/300/300/c/80/1/wnyc_square_logo.png",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "wnyc.org",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "ClassicFM",
+      "streamUrl": "https://media-ice.musicradio.com/ClassicFMMP3",
+      "iconUrl": "https://static.mytuner.mobi/media/tvos_radios/942/classic-fm.4dd5c844.png",
+      "categoryId": 1,
+      "tags": [
+        "clasica"
+      ],
+      "metadata": {
+        "description": "Música Clásica",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "RadioX",
+      "streamUrl": "https://media-ice.musicradio.com/RadioXUKMP3",
+      "iconUrl": "https://upload.wikimedia.org/wikipedia/en/3/3f/Radio_X_UK_logo.png",
+      "categoryId": 1,
+      "tags": [
+        "música"
+      ],
+      "metadata": {
+        "description": "RadioX",
+        "country": "España",
+        "language": "Español"
+      }
+    }
+  ],
+  "version": 1,
+  "updatedAt": 1847936577166
+}

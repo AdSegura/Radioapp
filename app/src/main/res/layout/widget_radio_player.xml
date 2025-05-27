@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background_light"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/widget_station_icon"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true"
+        android:contentDescription="Radio station icon"
+        android:padding="4dp"
+        android:src="@drawable/ic_radio_default" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_toStartOf="@+id/widget_buttons_container"
+        android:layout_toEndOf="@+id/widget_station_icon"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_station_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Radio Station"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Not playing"
+            android:textColor="#E0E0E0"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_buttons_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/widget_play_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Play/Pause"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_play_arrow" />
+
+        <ImageButton
+            android:id="@+id/widget_next_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Next station"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_skip_next" />
+    </LinearLayout>
+
+</RelativeLayout>

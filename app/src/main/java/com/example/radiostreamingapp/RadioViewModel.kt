@@ -1,0 +1,400 @@
+package com.example.radiostreamingapp
+
+import android.app.Application
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.SharedPreferences
+import android.os.IBinder
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.radiostreamingapp.data.RadioStation
+import com.example.radiostreamingapp.sync.impl.IconCacheManagerImpl
+import com.example.radiostreamingapp.sync.impl.RemoteConfigSyncImpl
+import com.example.radiostreamingapp.utils.Logger
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+import android.media.AudioManager
+import android.media.AudioFocusRequest
+import android.os.Build
+//import androidx.media.AudioManagerCompat.requestAudioFocus
+
+// RadioViewModel actualizado sin la referencia a 'widget'
+class RadioViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val gson = Gson()
+
+    private val _radioStations = MutableStateFlow<List<RadioStation>>(emptyList())
+    val radioStations: StateFlow<List<RadioStation>> = _radioStations
+
+    private val _currentStation = MutableStateFlow<RadioStation?>(null)
+    val currentStation: StateFlow<RadioStation?> = _currentStation
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val _errorState = MutableStateFlow<PlayerError?>(null)
+    val errorState: StateFlow<PlayerError?> = _errorState
+
+    private val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // Pausa cuando otra app toma el audio
+                pausePlayback()
+            }
+        }
+    }
+
+    // Método para limpiar errores
+    fun clearError() {
+        _errorState.value = null
+    }
+
+    // Media service connection
+    private var mediaServiceBinder: MediaPlaybackService.MediaServiceBinder? = null
+    private var serviceBound = false
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as MediaPlaybackService.MediaServiceBinder
+            mediaServiceBinder = binder
+            serviceBound = true
+
+            // Synchronize state with service
+            viewModelScope.launch {
+                binder.getService().currentStation.collect { station ->
+                    _currentStation.value = station
+                }
+            }
+
+            viewModelScope.launch {
+                binder.getService().isPlaying.collect { playing ->
+                    _isPlaying.value = playing
+                }
+            }
+
+            // Listen for errors
+            viewModelScope.launch {
+                binder.getService().playerError.collect { errorMessage ->
+                    if (errorMessage != null) {
+                        val station = _currentStation.value
+                        val errorType = binder.getService().errorType.value
+
+                        if (station != null) {
+                            _errorState.value = when (errorType) {
+                                MediaPlaybackService.ErrorType.NETWORK ->
+                                    PlayerError.ConnectionError(station)
+                                MediaPlaybackService.ErrorType.FORMAT ->
+                                    PlayerError.FormatError(station)
+                                else ->
+                                    PlayerError.StreamError(station, errorMessage)
+                            }
+                        } else {
+                            _errorState.value = PlayerError.UnknownError
+                        }
+                    }
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            mediaServiceBinder = null
+            serviceBound = false
+        }
+    }
+
+    init {
+        loadRadioStations()
+        bindMediaService()
+    }
+
+    override fun onCleared() {
+        abandonAudioFocus()
+        unbindMediaService()
+        super.onCleared()
+    }
+
+    private fun bindMediaService() {
+        getApplication<Application>().applicationContext.let { context ->
+            val intent = Intent(context, MediaPlaybackService::class.java)
+            context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    private fun unbindMediaService() {
+        if (serviceBound) {
+            getApplication<Application>().applicationContext.unbindService(serviceConnection)
+            serviceBound = false
+        }
+    }
+
+    private fun loadRadioStations() {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            try {
+                val context = getApplication<Application>().applicationContext
+                val configSync = RemoteConfigSyncImpl(context)
+                val iconManager = IconCacheManagerImpl(context)
+
+                val stations = configSync.getRadioStations().first()
+
+                if (stations.isNotEmpty()) {
+                    // Aplicar actualizaciones de URL guardadas
+                    val sharedPrefs = context.getSharedPreferences("RadioPrefs", Context.MODE_PRIVATE)
+                    val savedUpdates = loadSavedUrlUpdates(sharedPrefs)
+
+                    val finalStations = stations.map { station ->
+                        val savedUrl = savedUpdates[station.id]
+                        if (savedUrl != null) {
+                            station.copy(streamUrl = savedUrl)
+                        } else {
+                            station
+                        }
+                    }
+
+                    _radioStations.value = finalStations
+
+                    // Precargar iconos
+                    iconManager.preloadIcons(finalStations)
+                } else {
+                    // Sin configuración importada, mostrar mensaje al usuario
+                    _radioStations.value = emptyList()
+                }
+
+            } catch (e: Exception) {
+                Logger.e("TAG", "Error cargando configuración remota", e)
+                _radioStations.value = emptyList()
+            } finally {
+                _isLoading.value = false
+                updateWidgets()
+            }
+        }
+    }
+
+    /**
+     * Fuerza la recarga de estaciones (usado después de sincronización)
+     */
+    fun reloadStations() {
+        viewModelScope.launch {
+            _isLoading.value = true
+
+            val context = getApplication<Application>().applicationContext
+            val configSync = RemoteConfigSyncImpl(context)
+            val iconManager = IconCacheManagerImpl(context)
+
+            configSync.getRadioStations().first().let { stations ->
+                // Aplicar actualizaciones de URL guardadas
+                val sharedPrefs = context.getSharedPreferences("RadioPrefs", Context.MODE_PRIVATE)
+                val savedUpdates = loadSavedUrlUpdates(sharedPrefs)
+
+                val finalStations = stations.map { station ->
+                    val savedUrl = savedUpdates[station.id]
+                    if (savedUrl != null) {
+                        station.copy(streamUrl = savedUrl)
+                    } else {
+                        station
+                    }
+                }
+
+                _radioStations.value = finalStations
+                _isLoading.value = false
+
+                // Precargar iconos en segundo plano
+                iconManager.preloadIcons(finalStations)
+
+                // Solo llamar al método original updateWidgets()
+                updateWidgets()
+            }
+        }
+    }
+
+
+    private fun loadSavedUrlUpdates(prefs: SharedPreferences): Map<Int, String> {
+        val json = prefs.getString("url_updates", "{}")
+        return try {
+            val type = object : TypeToken<Map<Int, String>>() {}.type
+            gson.fromJson(json, type) ?: emptyMap()
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun saveUrlUpdate(stationId: Int, newUrl: String) {
+        val context = getApplication<Application>().applicationContext
+        val sharedPrefs = context.getSharedPreferences("RadioPrefs", Context.MODE_PRIVATE)
+
+        val updates = loadSavedUrlUpdates(sharedPrefs).toMutableMap()
+        updates[stationId] = newUrl
+
+        val json = gson.toJson(updates)
+        sharedPrefs.edit().putString("url_updates", json).apply()
+    }
+
+    /**
+     * Actualiza los widgets cuando cambia el estado
+     */
+    /**
+     * Actualiza los widgets cuando cambia el estado desde la app
+     */
+    private fun updateWidgets() {
+        // Obtener el contexto de la aplicación
+        val context = getApplication<Application>().applicationContext
+
+        // Actualizar las SharedPreferences
+        val prefs = context.getSharedPreferences(RadioAppWidget.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putBoolean(RadioAppWidget.KEY_IS_PLAYING, _isPlaying.value)
+
+            _currentStation.value?.let { station ->
+                putInt(RadioAppWidget.KEY_CURRENT_STATION_ID, station.id)
+
+                // Buscar el índice de la estación actual
+                val index = _radioStations.value.indexOfFirst { it.id == station.id }
+                if (index != -1) {
+                    putInt(RadioAppWidget.KEY_CURRENT_STATION_INDEX, index)
+                }
+            }
+
+            apply()
+        }
+
+        // Actualizar los widgets de la aplicación
+        RadioAppWidget.updateAllWidgets(context)
+    }
+
+    fun playStation(station: RadioStation) {
+        // Solicita audio focus antes de reproducir
+        if (requestAudioFocus()) {
+            if (serviceBound && mediaServiceBinder != null) {
+                mediaServiceBinder?.getService()?.playStation(station)
+
+                // Start service if not running
+                val context = getApplication<Application>().applicationContext
+                val intent = Intent(context, MediaPlaybackService::class.java)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                updateWidgets()
+            }
+        }
+    }
+
+    fun pausePlayback() {
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.pausePlayback()
+            updateWidgets()
+        }
+        // Libera audio focus cuando pausa manualmente
+        abandonAudioFocus()
+    }
+
+    fun resumePlayback() {
+        // Solicita audio focus antes de reanudar
+        if (requestAudioFocus()) {
+            if (serviceBound && mediaServiceBinder != null) {
+                mediaServiceBinder?.getService()?.resumePlayback()
+                updateWidgets()
+            }
+        }
+    }
+
+    @Suppress("UNUSED")
+    fun stopPlayback() {
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.stopPlayback()
+            updateWidgets()
+        }
+    }
+
+    fun updateStationUrl(stationId: Int, newUrl: String) {
+        viewModelScope.launch {
+            // Update the in-memory list
+            _radioStations.value = _radioStations.value.map { station ->
+                if (station.id == stationId) {
+                    station.copy(streamUrl = newUrl)
+                } else {
+                    station
+                }
+            }
+
+            // Save the update to SharedPreferences
+            saveUrlUpdate(stationId, newUrl)
+
+            // If this is the current station, update it
+            _currentStation.value?.let { current ->
+                if (current.id == stationId) {
+                    _currentStation.value = current.copy(streamUrl = newUrl)
+                }
+            }
+
+            // Actualizar los widgets al cambiar la URL
+            updateWidgets()
+        }
+    }
+
+    fun resetUrlToDefault(stationId: Int) {
+        viewModelScope.launch {
+            val context = getApplication<Application>().applicationContext
+            val sharedPrefs = context.getSharedPreferences("RadioPrefs", Context.MODE_PRIVATE)
+
+            // Remove the saved update
+            val updates = loadSavedUrlUpdates(sharedPrefs).toMutableMap()
+            updates.remove(stationId)
+
+            val json = gson.toJson(updates)
+            sharedPrefs.edit().putString("url_updates", json).apply()
+
+            // Reload stations to apply the reset
+            loadRadioStations()
+        }
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val audioAttributes = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(audioAttributes)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+
+            audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN
+            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(audioFocusChangeListener)
+        }
+    }
+}
