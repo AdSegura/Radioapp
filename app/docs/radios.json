@@ -71,6 +71,34 @@
       }
     },
     {
+      "name": "BBC Radio 4",
+      "streamUrl": "https://a.files.bbci.co.uk/ms6/live/3441A116-B12E-4D2F-ACA8-C1984642FA4B/audio/simulcast/dash/nonuk/pc_hd_abr_v2/aks/bbc_radio_fourfm.mpd",
+      "iconUrl": "https://banner2.cleanpng.com/20180420/uww/kisspng-bbc-radio-4-united-kingdom-today-vintage-radio-5ada3aa865be63.4507236215242513044168.jpg",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "BBC Radio 4",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
+      "name": "NPR News and Talk",
+      "streamUrl": "https://pd.npr.org/anon.npr-mp3/npr/news/newscast.mp3",
+      "iconUrl": "https://seekvectorlogo.com/wp-content/uploads/2018/01/npr-national-public-radio-vector-logo-small.png",
+      "categoryId": 1,
+      "tags": [
+        "noticias"
+      ],
+      "metadata": {
+        "description": "NPR News and Talk",
+        "country": "España",
+        "language": "Español"
+      }
+    },
+    {
       "name": "wnyc.org",
       "streamUrl": "https://am820.wnyc.org/wnycfm.aac",
       "iconUrl": "https://media.wnyc.org/i/300/300/c/80/1/wnyc_square_logo.png",

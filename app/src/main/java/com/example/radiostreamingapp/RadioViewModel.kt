@@ -20,9 +20,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-import android.media.AudioManager
+/*import android.media.AudioManager
 import android.media.AudioFocusRequest
-import android.os.Build
+import android.media.AudioAttributes
+import android.os.Build*/
 //import androidx.media.AudioManagerCompat.requestAudioFocus
 
 // RadioViewModel actualizado sin la referencia a 'widget'
@@ -45,19 +46,7 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
     private val _errorState = MutableStateFlow<PlayerError?>(null)
     val errorState: StateFlow<PlayerError?> = _errorState
 
-    private val audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    private var audioFocusRequest: AudioFocusRequest? = null
 
-    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                // Pausa cuando otra app toma el audio
-                pausePlayback()
-            }
-        }
-    }
 
     // Método para limpiar errores
     fun clearError() {
@@ -123,7 +112,6 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        abandonAudioFocus()
         unbindMediaService()
         super.onCleared()
     }
@@ -278,21 +266,18 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playStation(station: RadioStation) {
-        // Solicita audio focus antes de reproducir
-        if (requestAudioFocus()) {
-            if (serviceBound && mediaServiceBinder != null) {
-                mediaServiceBinder?.getService()?.playStation(station)
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.playStation(station)
 
-                // Start service if not running
-                val context = getApplication<Application>().applicationContext
-                val intent = Intent(context, MediaPlaybackService::class.java)
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-                updateWidgets()
+            // Start service if not running
+            val context = getApplication<Application>().applicationContext
+            val intent = Intent(context, MediaPlaybackService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
             }
+            updateWidgets()
         }
     }
 
@@ -301,17 +286,26 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
             mediaServiceBinder?.getService()?.pausePlayback()
             updateWidgets()
         }
-        // Libera audio focus cuando pausa manualmente
-        abandonAudioFocus()
     }
 
     fun resumePlayback() {
-        // Solicita audio focus antes de reanudar
-        if (requestAudioFocus()) {
-            if (serviceBound && mediaServiceBinder != null) {
-                mediaServiceBinder?.getService()?.resumePlayback()
-                updateWidgets()
-            }
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.resumePlayback()
+            updateWidgets()
+        }
+    }
+
+    private fun pausePlaybackInternal() {
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.pausePlayback()
+            updateWidgets()
+        }
+    }
+
+    private fun resumePlaybackInternal() {
+        if (serviceBound && mediaServiceBinder != null) {
+            mediaServiceBinder?.getService()?.resumePlayback()
+            updateWidgets()
         }
     }
 
@@ -366,35 +360,4 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun requestAudioFocus(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val audioAttributes = android.media.AudioAttributes.Builder()
-                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build()
-
-            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(audioAttributes)
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .build()
-
-            audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(
-                audioFocusChangeListener,
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN
-            ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        }
-    }
-
-    private fun abandonAudioFocus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.abandonAudioFocus(audioFocusChangeListener)
-        }
-    }
 }

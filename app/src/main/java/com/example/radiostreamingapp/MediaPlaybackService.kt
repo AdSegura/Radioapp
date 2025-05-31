@@ -30,6 +30,10 @@ import com.example.radiostreamingapp.utils.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+import android.media.AudioManager
+import android.media.AudioFocusRequest
+import android.media.AudioAttributes
+
 /**
  * Servicio para reproducir las emisoras de radio en segundo plano
  * y mostrar notificaciones con controles de reproducción
@@ -48,6 +52,41 @@ class MediaPlaybackService : Service() {
     val playerError: StateFlow<String?> = _playerError
     val errorType: StateFlow<ErrorType?> = _errorType
 
+    // AUDIO FOCUS
+    private lateinit var audioManager: AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var shouldResumeOnFocusGain = false
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                // Recuperaste el foco de audio
+                if (shouldResumeOnFocusGain && _currentStation.value != null) {
+                    resumePlaybackInternal()
+                }
+                shouldResumeOnFocusGain = false
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                // Perdiste el foco permanentemente - pausa y no reanudes automáticamente
+                shouldResumeOnFocusGain = false
+                pausePlaybackInternal()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                // Pérdida temporal (ej: llamada) - pausa pero recuerda reanudar
+                if (_isPlaying.value) {
+                    shouldResumeOnFocusGain = true
+                    pausePlaybackInternal()
+                }
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // Para radio streaming, es mejor pausar que hacer duck
+                if (_isPlaying.value) {
+                    shouldResumeOnFocusGain = true
+                    pausePlaybackInternal()
+                }
+            }
+        }
+    }
     enum class ErrorType {
         NETWORK, FORMAT, UNKNOWN
     }
@@ -82,6 +121,8 @@ class MediaPlaybackService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         // Initialize ExoPlayer
         player = ExoPlayer.Builder(this).build()
@@ -228,12 +269,20 @@ class MediaPlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        abandonAudioFocus() // AÑADIR ESTA LÍNEA
         player.release()
         mediaSession.release()
         super.onDestroy()
     }
 
     fun playStation(station: RadioStation) {
+        // Solicita audio focus antes de reproducir
+        if (!requestAudioFocus()) {
+            return // No continúa si no puede obtener audio focus
+        }
+
+        shouldResumeOnFocusGain = false // Reset flag al iniciar nueva reproducción
+
         // Update current station
         _currentStation.value = station
 
@@ -282,51 +331,22 @@ class MediaPlaybackService : Service() {
     }
 
     fun pausePlayback() {
-        player.pause()
-        _isPlaying.value = false
-
-        // Update MediaSession state
-        mediaSession.setPlaybackState(
-            PlaybackStateCompat.Builder()
-                .setState(PlaybackStateCompat.STATE_PAUSED, 0, 1.0f)
-                .setActions(
-                    PlaybackStateCompat.ACTION_PLAY
-                            or PlaybackStateCompat.ACTION_PLAY_PAUSE
-                            or PlaybackStateCompat.ACTION_STOP
-                            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-                            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-                )
-                .build()
-        )
-
-        // Update notification with new play/pause state
-        updateAllUIComponents()
+        shouldResumeOnFocusGain = false // Usuario pausó manualmente
+        pausePlaybackInternal()
+        // Libera audio focus cuando pausa manualmente
+        abandonAudioFocus()
     }
 
     fun resumePlayback() {
-        player.play()
-        _isPlaying.value = true
-
-        // Update MediaSession state
-        mediaSession.setPlaybackState(
-            PlaybackStateCompat.Builder()
-                .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1.0f)
-                .setActions(
-                    PlaybackStateCompat.ACTION_PAUSE
-                            or PlaybackStateCompat.ACTION_PLAY_PAUSE
-                            or PlaybackStateCompat.ACTION_STOP
-                            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-                            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-                )
-                .build()
-        )
-
-        // Ensure foreground service is running with updated notification
-        startForegroundService()
-        updateAllUIComponents()
+        if (requestAudioFocus()) {
+            resumePlaybackInternal()
+        }
     }
 
     fun stopPlayback() {
+        shouldResumeOnFocusGain = false
+        abandonAudioFocus() // Libera audio focus al detener
+
         player.stop()
         _isPlaying.value = false
         _currentStation.value = null
@@ -645,5 +665,72 @@ class MediaPlaybackService : Service() {
 
         // 3. Actualizar los widgets
         RadioAppWidget.updateAllWidgets(applicationContext)
+    }
+
+    private fun pausePlaybackInternal() {
+        player.pause()
+        _isPlaying.value = false
+
+        // Update MediaSession state
+        mediaSession.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setState(PlaybackStateCompat.STATE_PAUSED, 0, 1.0f)
+                .setActions(
+                    PlaybackStateCompat.ACTION_PLAY
+                            or PlaybackStateCompat.ACTION_PLAY_PAUSE
+                            or PlaybackStateCompat.ACTION_STOP
+                            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                )
+                .build()
+        )
+
+        // Update notification with new play/pause state
+        updateAllUIComponents()
+    }
+
+    private fun resumePlaybackInternal() {
+        player.play()
+        _isPlaying.value = true
+
+        // Update MediaSession state
+        mediaSession.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setState(PlaybackStateCompat.STATE_PLAYING, 0, 1.0f)
+                .setActions(
+                    PlaybackStateCompat.ACTION_PAUSE
+                            or PlaybackStateCompat.ACTION_PLAY_PAUSE
+                            or PlaybackStateCompat.ACTION_STOP
+                            or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                            or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                )
+                .build()
+        )
+
+        // Ensure foreground service is running with updated notification
+        startForegroundService()
+        updateAllUIComponents()
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(audioAttributes)
+            .setAcceptsDelayedFocusGain(true)
+            .setOnAudioFocusChangeListener(audioFocusChangeListener)
+            .build()
+
+        return audioManager.requestAudioFocus(audioFocusRequest!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        audioFocusRequest?.let {
+            audioManager.abandonAudioFocusRequest(it)
+            audioFocusRequest = null
+        }
     }
 }
