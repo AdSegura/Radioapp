@@ -20,11 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/*import android.media.AudioManager
-import android.media.AudioFocusRequest
-import android.media.AudioAttributes
-import android.os.Build*/
-//import androidx.media.AudioManagerCompat.requestAudioFocus
 
 // RadioViewModel actualizado sin la referencia a 'widget'
 class RadioViewModel(application: Application) : AndroidViewModel(application) {

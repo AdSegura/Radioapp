@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.StateFlow
 import android.media.AudioManager
 import android.media.AudioFocusRequest
 import android.media.AudioAttributes
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 
 /**
  * Servicio para reproducir las emisoras de radio en segundo plano
@@ -56,6 +58,7 @@ class MediaPlaybackService : Service() {
     private lateinit var audioManager: AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var shouldResumeOnFocusGain = false
+    private var audioBecomingNoisyReceiver: BroadcastReceiver? = null
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -87,6 +90,7 @@ class MediaPlaybackService : Service() {
             }
         }
     }
+
     enum class ErrorType {
         NETWORK, FORMAT, UNKNOWN
     }
@@ -127,7 +131,8 @@ class MediaPlaybackService : Service() {
         // Initialize ExoPlayer
         player = ExoPlayer.Builder(this).build()
         player.addListener(playerListener)
-        player.setHandleAudioBecomingNoisy(true) // Pausa cuando se desconectan los auriculares
+
+        setupAudioBecomingNoisyReceiver()
 
         // Create MediaSession
         mediaSession = MediaSessionCompat(this, "RadioPlaybackService").apply {
@@ -269,7 +274,9 @@ class MediaPlaybackService : Service() {
     }
 
     override fun onDestroy() {
-        abandonAudioFocus() // AÑADIR ESTA LÍNEA
+        abandonAudioFocus()
+
+        audioBecomingNoisyReceiver?.let { unregisterReceiver(it) }
         player.release()
         mediaSession.release()
         super.onDestroy()
@@ -732,5 +739,19 @@ class MediaPlaybackService : Service() {
             audioManager.abandonAudioFocusRequest(it)
             audioFocusRequest = null
         }
+    }
+
+    private fun setupAudioBecomingNoisyReceiver() {
+        audioBecomingNoisyReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                    // Auriculares desconectados - pausa la reproducción
+                    pausePlayback()
+                }
+            }
+        }
+
+        val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        registerReceiver(audioBecomingNoisyReceiver, filter)
     }
 }

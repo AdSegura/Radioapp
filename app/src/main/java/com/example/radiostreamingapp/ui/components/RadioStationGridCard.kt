@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,11 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.radiostreamingapp.EditUrlDialog
 import com.example.radiostreamingapp.data.RadioStation
-//import com.example.radiostreamingapp.ui.components.StationIcon
 
-// Radio Station Grid Card - Optimized for grid layout
+// Radio Station Grid Card - Compact professional design
 @Composable
 fun RadioStationGridCard(
     station: RadioStation,
@@ -52,7 +53,7 @@ fun RadioStationGridCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1f) // Makes the card square
+            .aspectRatio(1.1f) // Más compacto, casi cuadrado
             .clickable { onStationClick() },
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isCurrentlyPlaying) 8.dp else 4.dp
@@ -65,93 +66,100 @@ fun RadioStationGridCard(
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(12.dp)
         ) {
-            // Top row with edit button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+            // Botón de editar en la esquina superior derecha
+            IconButton(
+                onClick = { showEditDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(24.dp)
+                    .offset(x = 4.dp, y = (-4).dp)
             ) {
-                IconButton(
-                    onClick = { showEditDialog = true },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = "Edit URL",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = "Edit URL",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(14.dp)
+                )
             }
 
-            // Station Icon (centered)
-            Box(
-                modifier = Modifier.size(84.dp),
-                contentAlignment = Alignment.Center
+            // Contenido principal centrado
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                StationIcon(
-                    station = station,
-                    size = 84.dp,
-                    contentDescription = station.name
-                )
+                // Contenedor del icono con indicador
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    StationIcon(
+                        station = station,
+                        size = 64.dp,
+                        contentDescription = station.name
+                    )
 
-                // Playing indicator overlay
-                if (isCurrentlyPlaying) {
-                    Surface(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .offset(x = 30.dp, y = (-30).dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
+                    // Indicador de reproducción más pequeño y sutil
+                    if (isCurrentlyPlaying) {
+                        Surface(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .offset(x = 22.dp, y = (-22).dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            shadowElevation = 2.dp
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "Currently Playing",
-                                tint = Color.White,
-                                modifier = Modifier.size(12.dp)
-                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PlayArrow,
+                                    contentDescription = "Currently Playing",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            // Station Info (bottom)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+                // Espaciado más compacto
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Nombre de la emisora
                 Text(
                     text = station.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     color = if (isCurrentlyPlaying)
                         MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = MaterialTheme.typography.titleSmall.lineHeight,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Text(
-                    text = if (isCurrentlyPlaying) "Playing" else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                // Indicador de estado más discreto
+                if (isCurrentlyPlaying) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Playing",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
