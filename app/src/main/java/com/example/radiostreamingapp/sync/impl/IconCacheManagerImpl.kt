@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.UUID
@@ -40,8 +42,12 @@ class IconCacheManagerImpl @Inject constructor(
         private const val TAG = "IconCacheManager"
         private const val CACHE_DIR_NAME = "station_icons"
         private const val DEFAULT_CONCURRENT_DOWNLOADS = 5
-        private const val MAX_RETRY_COUNT = 3
+        private const val MAX_RETRY_COUNT = 2 // Reducido de 3 a 2 reintentos máximo
         private const val DOWNLOAD_TIMEOUT_MS = 15000
+        private const val CONNECT_TIMEOUT_MS = 10000
+
+        // User-Agent de navegador real para evitar bloqueos de servidores
+        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
     private val cacheDir: File by lazy {
@@ -97,7 +103,6 @@ class IconCacheManagerImpl @Inject constructor(
         // Filtrar estaciones que tienen iconUrl en metadata
         val stationsWithIcons = stations.filter { station ->
             val iconUrl = station.metadata?.get("iconUrl")
-
             !iconUrl.isNullOrBlank()
         }
 
@@ -250,7 +255,7 @@ class IconCacheManagerImpl @Inject constructor(
     }
 
     /**
-     * Descarga y cachea un icono desde una URL
+     * Descarga y cachea un icono desde una URL con manejo mejorado de errores y reintentos
      */
     private suspend fun downloadAndCacheIcon(
         station: RadioStation,
@@ -271,43 +276,126 @@ class IconCacheManagerImpl @Inject constructor(
                 return@withContext BitmapFactory.decodeFile(iconFile.absolutePath)
             }
 
-            Logger.d(TAG, "Descargando icono desde: $iconUrl")
+            Logger.d(TAG, "Descargando icono para ${station.name} desde: $iconUrl (intento ${retryCount + 1})")
 
-            // Descargar el icono
-            val url = URL(iconUrl)
-            val connection = url.openConnection()
-            connection.connectTimeout = DOWNLOAD_TIMEOUT_MS
-            connection.readTimeout = DOWNLOAD_TIMEOUT_MS
-            connection.setRequestProperty("User-Agent", "RadioStreamingApp/1.0")
+            val connection = createConnection(iconUrl)
 
-            // Leer el bitmap
-            val bitmap = connection.getInputStream().use { inputStream ->
-                BitmapFactory.decodeStream(inputStream)
-            } ?: throw Exception("No se pudo decodificar la imagen desde $iconUrl")
+            // Verificar el código de respuesta antes de procesar
+            val responseCode = connection.responseCode
+            Logger.d(TAG, "Código de respuesta para ${station.name}: $responseCode")
 
-            // Guardar como WebP para optimizar espacio
-            FileOutputStream(iconFile).use { fos ->
-                bitmap.compress(Bitmap.CompressFormat.WEBP, 90, fos)
-                fos.flush()
+            when (responseCode) {
+                HttpURLConnection.HTTP_OK -> {
+                    // Descargar y procesar la imagen
+                    val bitmap = connection.inputStream.use { inputStream ->
+                        BitmapFactory.decodeStream(inputStream)
+                    } ?: throw IOException("No se pudo decodificar la imagen desde $iconUrl")
+
+                    // Guardar como WebP para optimizar espacio
+                    FileOutputStream(iconFile).use { fos ->
+                        bitmap.compress(Bitmap.CompressFormat.WEBP, 90, fos)
+                        fos.flush()
+                    }
+
+                    Logger.d(TAG, "Icono guardado exitosamente para ${station.name}: ${iconFile.length()} bytes")
+                    return@withContext bitmap
+                }
+
+                HttpURLConnection.HTTP_FORBIDDEN,
+                HttpURLConnection.HTTP_UNAUTHORIZED -> {
+                    Logger.w(TAG, "Acceso denegado ($responseCode) para ${station.name} desde $iconUrl")
+
+                    // Solo un reintento para errores de autorización
+                    if (retryCount < 1) {
+                        Logger.d(TAG, "Reintentando descarga para ${station.name} después de error $responseCode...")
+                        kotlinx.coroutines.delay(1000)
+                        return@withContext downloadAndCacheIcon(station, iconUrl, retryCount + 1)
+                    } else {
+                        throw IOException("Acceso denegado después de ${retryCount + 1} intentos")
+                    }
+                }
+
+                HttpURLConnection.HTTP_NOT_FOUND -> {
+                    Logger.w(TAG, "Icono no encontrado (404) para ${station.name}")
+                    throw IOException("Icono no encontrado (404)")
+                }
+
+                else -> {
+                    Logger.w(TAG, "Código de respuesta inesperado $responseCode para ${station.name}")
+
+                    // Para otros códigos de error, un reintento si es el primer intento
+                    if (retryCount < 1) {
+                        Logger.d(TAG, "Reintentando descarga para ${station.name} debido a código $responseCode...")
+                        kotlinx.coroutines.delay(1000)
+                        return@withContext downloadAndCacheIcon(station, iconUrl, retryCount + 1)
+                    } else {
+                        throw IOException("Error HTTP $responseCode después de ${retryCount + 1} intentos")
+                    }
+                }
             }
 
-            Logger.d(TAG, "Icono guardado exitosamente para ${station.name}: ${iconFile.length()} bytes")
-            bitmap
-
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Logger.e(TAG, "Error descargando icono para ${station.name} desde $iconUrl", e)
 
-            // Reintento con back-off exponencial
-            if (retryCount < MAX_RETRY_COUNT && !cancellationFlag.get()) {
+            // Reintentar solo si no es un error definitivo y no hemos superado el máximo
+            if (retryCount < MAX_RETRY_COUNT && !cancellationFlag.get() && !isNonRetryableError(e)) {
                 val backoffTime = (Math.pow(2.0, retryCount.toDouble()) * 1000).toLong()
+                Logger.d(TAG, "Reintentando descarga para ${station.name} en ${backoffTime}ms...")
                 kotlinx.coroutines.delay(backoffTime)
-                downloadAndCacheIcon(station, iconUrl, retryCount + 1)
+                return@withContext downloadAndCacheIcon(station, iconUrl, retryCount + 1)
             } else {
-                null
+                Logger.e(TAG, "Error final descargando icono para ${station.name}: ${e.message}")
+                return@withContext null
             }
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error inesperado descargando icono para ${station.name}", e)
+            return@withContext null
         } finally {
             activeDownloads.remove(station.id)
         }
+    }
+
+    /**
+     * Crea una conexión HTTP configurada con User-Agent real y headers apropiados
+     */
+    private fun createConnection(iconUrl: String): HttpURLConnection {
+        val url = URL(iconUrl)
+        val connection = url.openConnection() as HttpURLConnection
+
+        // Configurar timeouts
+        connection.connectTimeout = CONNECT_TIMEOUT_MS
+        connection.readTimeout = DOWNLOAD_TIMEOUT_MS
+
+        // Configurar User-Agent de navegador real para evitar bloqueos
+        connection.setRequestProperty("User-Agent", USER_AGENT)
+
+        // Headers adicionales para parecer una petición de navegador legítima
+        connection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+        connection.setRequestProperty("Accept-Language", "es-ES,es;q=0.9,en;q=0.8")
+        connection.setRequestProperty("Accept-Encoding", "gzip, deflate, br")
+        connection.setRequestProperty("Connection", "keep-alive")
+        connection.setRequestProperty("Upgrade-Insecure-Requests", "1")
+
+        // Headers para evitar caché del servidor
+        connection.setRequestProperty("Cache-Control", "no-cache")
+        connection.setRequestProperty("Pragma", "no-cache")
+
+        connection.doInput = true
+        connection.requestMethod = "GET"
+
+        return connection
+    }
+
+    /**
+     * Determina si un error no es recuperable y no vale la pena reintentar
+     */
+    private fun isNonRetryableError(e: IOException): Boolean {
+        val message = e.message?.lowercase() ?: ""
+        return message.contains("malformed") ||
+                message.contains("protocol") ||
+                message.contains("unknown host") ||
+                message.contains("invalid url") ||
+                message.contains("no se pudo decodificar")
     }
 
     /**

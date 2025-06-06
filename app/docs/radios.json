@@ -3,7 +3,7 @@
     {
       "name": "RNE5 Todo Noticias",
       "streamUrl": "https://rtvelivestream.rtve.es/rtvesec/rne/rne_r5_madrid_main.m3u8",
-      "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Radio_5_RNE_Spain.svg/330px-Radio_5_RNE_Spain.svg.png",
+      "iconUrl": "https://images.seeklogo.com/logo-png/11/1/rne-5-logo-png_seeklogo-118988.png",
       "categoryId": 3,
       "tags": [
         "noticias"
@@ -58,7 +58,7 @@
     },
     {
       "name": "BBC World",
-      "streamUrl": "http://stream.live.vc.bbcmedia.co.uk/bbc_world_service",
+      "streamUrl": "https://ice.audionow.com/485BBCWorld.mp3",
       "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/BBC_World_News_2022_%28Boxed%29.svg/250px-BBC_World_News_2022_%28Boxed%29.svg.png",
       "categoryId": 1,
       "tags": [
@@ -86,7 +86,7 @@
     },
     {
       "name": "NPR News and Talk",
-      "streamUrl": "https://pd.npr.org/anon.npr-mp3/npr/news/newscast.mp3",
+      "streamUrl": "https://npr-ice.streamguys1.com/live.mp3",
       "iconUrl": "https://seekvectorlogo.com/wp-content/uploads/2018/01/npr-national-public-radio-vector-logo-small.png",
       "categoryId": 1,
       "tags": [
