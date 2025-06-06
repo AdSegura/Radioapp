@@ -21,12 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.radiostreamingapp.data.RadioStation
+import androidx.compose.material3.CircularProgressIndicator
 
 // Player Bar
 @Composable
 fun PlayerBar(
     station: RadioStation,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
     onPlayPause: () -> Unit
 ) {
     Surface(
@@ -59,23 +61,35 @@ fun PlayerBar(
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = if (isPlaying) "Playing" else "Paused",
+                    text = when {
+                        isBuffering -> "Connecting..."
+                        isPlaying -> "Playing"
+                        else -> "Paused"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
             }
 
-            // Play/Pause Button
-            IconButton(
-                onClick = onPlayPause,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
+            // Play/Pause Button o Indicador de buffering
+            if (isBuffering) {
+                CircularProgressIndicator(
                     modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    strokeWidth = 3.dp,
+                    color = MaterialTheme.colorScheme.primary
                 )
+            } else {
+                IconButton(
+                    onClick = onPlayPause,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }

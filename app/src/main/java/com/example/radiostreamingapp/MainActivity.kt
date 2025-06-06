@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.dp
 import com.example.radiostreamingapp.ui.components.ThemeSelectorDialog
 import com.example.radiostreamingapp.ui.theme.RadioStreamingAppTheme
 import androidx.compose.material.icons.filled.Settings
+import androidx.media3.common.util.UnstableApi
 import com.example.radiostreamingapp.sync.ui.SyncSettingsScreen
 import com.example.radiostreamingapp.ui.components.PlayerBar
 import dagger.hilt.android.AndroidEntryPoint
 import com.example.radiostreamingapp.utils.Logger
 import com.example.radiostreamingapp.ui.components.RadioStationGridCard
 
+@UnstableApi
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: RadioViewModel by viewModels()
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
 }
 
 // Main App Composable
+@androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RadioStreamingApp(viewModel: RadioViewModel) {
@@ -52,6 +55,7 @@ fun RadioStreamingApp(viewModel: RadioViewModel) {
     val radioStations by viewModel.radioStations.collectAsState()
     val currentStation by viewModel.currentStation.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
+    val isBuffering by viewModel.isBuffering.collectAsState()
 
     // Estado para controlar la visibilidad del selector de tema
     val showThemeSelector = remember { mutableStateOf(false) }
@@ -108,6 +112,7 @@ fun RadioStreamingApp(viewModel: RadioViewModel) {
                 PlayerBar(
                     station = currentStation!!,
                     isPlaying = isPlaying,
+                    isBuffering = isBuffering, // Nueva línea
                     onPlayPause = {
                         if (isPlaying) {
                             viewModel.pausePlayback()

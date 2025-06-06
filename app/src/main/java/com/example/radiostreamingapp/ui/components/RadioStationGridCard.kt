@@ -39,12 +39,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.radiostreamingapp.data.RadioStation
+import androidx.compose.material3.CircularProgressIndicator
 
 // Radio Station Grid Card - Compact professional design
 @Composable
 fun RadioStationGridCard(
     station: RadioStation,
     isCurrentlyPlaying: Boolean,
+    isBuffering: Boolean = false,
     onStationClick: () -> Unit,
     onEditUrl: (String) -> Unit
 ) {
@@ -107,25 +109,48 @@ fun RadioStationGridCard(
                     )
 
                     // Indicador de reproducción más pequeño y sutil
-                    if (isCurrentlyPlaying) {
-                        Surface(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .offset(x = 22.dp, y = (-22).dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            shadowElevation = 2.dp
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.fillMaxSize()
+                    when {
+                        isBuffering -> {
+                            Surface(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .offset(x = 22.dp, y = (-22).dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                shadowElevation = 2.dp
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.PlayArrow,
-                                    contentDescription = "Currently Playing",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(10.dp)
-                                )
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(10.dp),
+                                        strokeWidth = 1.dp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        isCurrentlyPlaying -> {
+                            Surface(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .offset(x = 22.dp, y = (-22).dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                shadowElevation = 2.dp
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.PlayArrow,
+                                        contentDescription = "Currently Playing",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                }
                             }
                         }
                     }

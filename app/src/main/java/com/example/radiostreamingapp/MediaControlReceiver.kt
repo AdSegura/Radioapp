@@ -3,6 +3,8 @@ package com.example.radiostreamingapp
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import com.example.radiostreamingapp.utils.Logger
 
 /**
@@ -10,6 +12,7 @@ import com.example.radiostreamingapp.utils.Logger
  * desde las notificaciones
  */
 class MediaControlReceiver : BroadcastReceiver() {
+    @OptIn(UnstableApi::class)
     override fun onReceive(context: Context, intent: Intent) {
         Logger.d("MediaControlReceiver", "Broadcast received: ${intent.action}, extras: ${intent.extras}")
 

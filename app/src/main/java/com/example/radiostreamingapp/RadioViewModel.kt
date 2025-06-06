@@ -7,8 +7,10 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.os.IBinder
+import androidx.annotation.OptIn
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.util.UnstableApi
 import com.example.radiostreamingapp.data.RadioStation
 import com.example.radiostreamingapp.sync.impl.IconCacheManagerImpl
 import com.example.radiostreamingapp.sync.impl.RemoteConfigSyncImpl
@@ -22,9 +24,13 @@ import kotlinx.coroutines.launch
 
 
 // RadioViewModel actualizado sin la referencia a 'widget'
+@UnstableApi
 class RadioViewModel(application: Application) : AndroidViewModel(application) {
 
     private val gson = Gson()
+
+    private val _isBuffering = MutableStateFlow(false)
+    val isBuffering: StateFlow<Boolean> = _isBuffering
 
     private val _radioStations = MutableStateFlow<List<RadioStation>>(emptyList())
     val radioStations: StateFlow<List<RadioStation>> = _radioStations
@@ -53,6 +59,7 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
     private var serviceBound = false
 
     private val serviceConnection = object : ServiceConnection {
+        @OptIn(UnstableApi::class)
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as MediaPlaybackService.MediaServiceBinder
             mediaServiceBinder = binder
@@ -68,6 +75,26 @@ class RadioViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 binder.getService().isPlaying.collect { playing ->
                     _isPlaying.value = playing
+                }
+            }
+
+            viewModelScope.launch {
+                binder.getService().isBuffering.collect { buffering ->
+                    _isBuffering.value = buffering
+                }
+            }
+
+            viewModelScope.launch {
+                binder.getService().isPlaying.collect { playing ->
+                    Logger.d("RadioViewModel", "Service isPlaying changed: $playing")
+                    _isPlaying.value = playing
+                }
+            }
+
+            viewModelScope.launch {
+                binder.getService().isBuffering.collect { buffering ->
+                    Logger.d("RadioViewModel", "Service isBuffering changed: $buffering")
+                    _isBuffering.value = buffering
                 }
             }
 
