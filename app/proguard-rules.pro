@@ -40,29 +40,39 @@
 
 -dontwarn javax.inject.**
 -dontwarn dagger.hilt.**
+
+# Logging - Keep errors but remove debug logs
 -assumenosideeffects class android.util.Log {
     public static *** d(...);
     public static *** i(...);
     public static *** w(...);
+}
+# Keep error logs
+-keep class android.util.Log {
     public static *** e(...);
 }
 
 # ==============================================
-# JETPACK COMPOSE SPECIFIC RULES
+# MEDIA3 EXOPLAYER RULES
 # ==============================================
 
-# ALTERNATIVE SOLUTION: More aggressive Compose protection
--keep,allowobfuscation,allowshrinking class androidx.compose.runtime.snapshots.SnapshotStateList
--keepclassmembers class androidx.compose.runtime.snapshots.SnapshotStateList {
-    boolean conditionalUpdate(boolean, kotlin.jvm.functions.Function1);
-    *** conditionalUpdate(...);
-}
+# Keep Media3 core classes
+-keep class androidx.media3.common.** { *; }
+-keep class androidx.media3.exoplayer.** { *; }
+-keep class androidx.media3.datasource.** { *; }
+-keep class androidx.media3.extractor.** { *; }
 
-# Keep all methods that might have lock verification issues
--keepclassmembers class androidx.compose.runtime.snapshots.** {
-    *** conditionalUpdate(...);
-    *** *(...);
-}
+# Media3 annotations and unstable API
+-dontwarn androidx.media3.common.util.UnstableApi
+-keep @androidx.media3.common.util.UnstableApi class * { *; }
+
+# Media session compatibility
+-keep class androidx.media.** { *; }
+-keep class android.support.v4.media.** { *; }
+
+# ==============================================
+# JETPACK COMPOSE SPECIFIC RULES
+# ==============================================
 
 # Keep Compose compiler generated classes
 -keep class androidx.compose.compiler.** { *; }
@@ -88,31 +98,63 @@
     kotlin.jvm.functions.Function* *;
 }
 
-# Disable ALL optimizations to prevent lock verification issues
-#-dontoptimize
-#-dontobfuscate
+# Keep Compose runtime snapshots
+-keep,allowobfuscation,allowshrinking class androidx.compose.runtime.snapshots.SnapshotStateList
+-keepclassmembers class androidx.compose.runtime.snapshots.SnapshotStateList {
+    boolean conditionalUpdate(boolean, kotlin.jvm.functions.Function1);
+    *** conditionalUpdate(...);
+}
 
-# Alternative: If you need some optimization, use conservative settings
-# -optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*,!code/allocation/variable
-# -optimizationpasses 1
+# Keep all methods that might have lock verification issues
+-keepclassmembers class androidx.compose.runtime.snapshots.** {
+    *** conditionalUpdate(...);
+    *** *(...);
+}
+
+# Additional safety for API 31+ and Compose
+-dontwarn androidx.compose.**
+-dontwarn kotlin.reflect.jvm.internal.**
+
+# ==============================================
+# KOTLIN COROUTINES
+# ==============================================
+
+# Keep StateFlow and Flow classes
+-keep class kotlinx.coroutines.flow.** { *; }
+-keep class kotlinx.coroutines.** { *; }
 
 # Keep ViewModel classes
 -keep class * extends androidx.lifecycle.ViewModel {
     <init>(...);
 }
 
-# Keep StateFlow and Flow classes
--keep class kotlinx.coroutines.flow.** { *; }
--keep class kotlinx.coroutines.** { *; }
+# ==============================================
+# DEPENDENCY INJECTION (HILT)
+# ==============================================
 
-# Additional safety for API 31+ and Compose
--dontwarn androidx.compose.**
--dontwarn kotlin.reflect.jvm.internal.**
+# Hilt
+-keep class dagger.hilt.** { *; }
+-keep class * extends dagger.hilt.android.internal.managers.ViewComponentManager$FragmentContextWrapper { *; }
+-keep @dagger.hilt.android.lifecycle.HiltViewModel class * { *; }
+
+# ==============================================
+# ANDROID COMPONENTS
+# ==============================================
 
 # Keep Parcelable implementations
 -keep class * implements android.os.Parcelable {
     public static final android.os.Parcelable$Creator *;
 }
+
+# Keep Service classes
+-keep class * extends android.app.Service { *; }
+
+# Keep BroadcastReceiver classes
+-keep class * extends android.content.BroadcastReceiver { *; }
+
+# ==============================================
+# R8 COMPATIBILITY
+# ==============================================
 
 # R8 full mode compatibility
 -keepattributes RuntimeVisibleAnnotations
@@ -123,3 +165,16 @@
 -keepattributes Signature
 -keepattributes InnerClasses
 -keepattributes EnclosingMethod
+
+# ==============================================
+# OPTIMIZATION SETTINGS
+# ==============================================
+
+# Conservative optimization to avoid issues
+-optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
+-optimizationpasses 2
+
+# Don't warn about missing classes that are not used
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn org.checkerframework.**
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement

@@ -7,14 +7,14 @@ plugins {
 }
 
 android {
-    namespace = "com.example.radiostreamingapp"  // Add this line
+    namespace = "com.example.radiostreamingapp"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.radiostreamingapp"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -37,8 +37,13 @@ android {
             isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android.txt"), // ← Sin optimize
+                "proguard-rules.pro"
             )
+            /*proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )*/
         }
     }
 
@@ -92,7 +97,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
     implementation("androidx.media3:media3-exoplayer-rtsp:1.4.1")
-
+    implementation("androidx.media3:media3-datasource:1.4.1")         // Para DataSource
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")  // Para mejor HTTP
     // Biblioteca para reproducción multimedia en segundo plano
     implementation("androidx.media:media:1.7.0")
 
